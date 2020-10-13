@@ -1,83 +1,85 @@
-<template>
-  <div style="display: none;">
-    <slot v-if="ready" />
-  </div>
-</template>
-
 <script>
-  import { marker, DomEvent, Icon } from 'leaflet'
-  import { findRealParent, propsBinder } from 'vue2-leaflet'
+  import {
+    optionsMerger,
+    propsBinder,
+    findRealParent,
+    debounce,
+    LayerMixin,
+    OptionsMixin
+  } from 'vue2-leaflet'
+  import { marker, DomEvent, Icon, latLng } from 'leaflet'
   import 'leaflet.marker.slideto'
 
-  const props = {
-    draggable: {
-      type: Boolean,
-      custom: true,
-      default: false
-    },
-    visible: {
-      type: Boolean,
-      custom: true,
-      default: true
-    },
-    latLng: {
-      type: [Object, Array],
-      custom: true
-    },
-    icon: {
-      custom: false,
-      default: () => new Icon.Default()
-    },
-    zIndexOffset: {
-      type: Number,
-      custom: false
-    },
-    options: {
-      type: Object,
-      default: () => ({})
-    },
-    duration: {
-      type: Number,
-      required: true
-    },
-    keepAtCenter: {
-      type: Boolean,
-      default: false
-    }
-  }
-
+  /**
+   * Marker component, lets you add and personalize markers on the map
+   */
   export default {
-    name: 'LMovingMarker',
-    props,
+    name: 'LMarker',
+    mixins: [LayerMixin, OptionsMixin],
+    props: {
+      pane: {
+        type: String,
+        default: 'markerPane',
+      },
+      draggable: {
+        type: Boolean,
+        custom: true,
+        default: false,
+      },
+      latLng: {
+        type: [Object, Array],
+        custom: true,
+        default: null,
+      },
+      icon: {
+        type: [Object],
+        custom: false,
+        default: () => new Icon.Default(),
+      },
+      zIndexOffset: {
+        type: Number,
+        custom: false,
+        default: null,
+      },
+      duration: {
+        type: Number,
+        required: true
+      },
+      keepAtCenter: {
+        type: Boolean,
+        default: false
+      }
+    },
     data() {
       return {
-        ready: false
+        ready: false,
       }
     },
     mounted() {
-      const options = this.options
-      if (this.icon) {
-        options.icon = this.icon
-      }
-      options.draggable = this.draggable
+      const options = optionsMerger(
+        {
+          ...this.layerOptions,
+          icon: this.icon,
+          zIndexOffset: this.zIndexOffset,
+          draggable: this.draggable,
+        },
+        this
+      )
       this.mapObject = marker(this.latLng, options)
-      this.mapObject.on('move', ev => {
-        if (Array.isArray(this.latLng)) {
-          this.latLng[0] = ev.latlng.lat
-          this.latLng[1] = ev.latlng.lng
-        } else {
-          this.latLng.lat = ev.latlng.lat
-          this.latLng.lng = ev.latlng.lng
-        }
-      })
       DomEvent.on(this.mapObject, this.$listeners)
-      propsBinder(this, this.mapObject, props)
-      this.ready = true
+      this.mapObject.on('move', debounce(this.latLngSync, 100))
+      propsBinder(this, this.mapObject, this.$options.props)
       this.parentContainer = findRealParent(this.$parent)
       this.parentContainer.addLayer(this, !this.visible)
-    },
-    beforeDestroy() {
-      this.parentContainer.removeLayer(this)
+      this.ready = true
+      this.$nextTick(() => {
+        /**
+         * Triggers when the component is ready
+         * @type {object}
+         * @property {object} mapObject - reference to leaflet map object
+         */
+        this.$emit('ready', this.mapObject)
+      })
     },
     methods: {
       setDraggable(newVal) {
@@ -87,25 +89,14 @@
             : this.mapObject.dragging.disable()
         }
       },
-      setVisible(newVal, oldVal) {
-        if (newVal === oldVal) return
-        if (this.mapObject) {
-          if (newVal) {
-            this.parentContainer.addLayer(this)
-          } else {
-            this.parentContainer.removeLayer(this)
-          }
-        }
-      },
       setLatLng(newVal) {
-        if (newVal == null) return
+        if (newVal == null) {
+          return
+        }
 
         if (this.mapObject) {
           const oldLatLng = this.mapObject.getLatLng()
-          const newLatLng = {
-            lat: newVal[0] || newVal.lat,
-            lng: newVal[1] || newVal.lng
-          }
+          const newLatLng = latLng(newVal)
           if (
             newLatLng.lat !== oldLatLng.lat ||
             newLatLng.lng !== oldLatLng.lng
@@ -116,7 +107,49 @@
             })
           }
         }
+      },
+      latLngSync(event) {
+        this.$emit('update:latLng', event.latlng)
+        this.$emit('update:lat-lng', event.latlng)
+      },
+    },
+    render: function(h) {
+      if (this.ready && this.$slots.default) {
+        return h('div', { style: { display: 'none' } }, this.$slots.default)
       }
-    }
+      return null
+    },
   }
 </script>
+
+<docs>
+## Demo
+::: demo
+<template>
+  <l-map style="height: 350px" :zoom="zoom" :center="center">
+    <l-tile-layer :url="url"></l-tile-layer>
+    <l-marker :lat-lng="markerLatLng" ></l-marker>
+  </l-map>
+</template>
+
+<script>
+import {LMap, LTileLayer, LMarker} from 'vue2-leaflet';
+
+export default {
+  components: {
+    LMap,
+    LTileLayer,
+    LMarker
+  },
+  data () {
+    return {
+      url: 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
+      zoom: 3,
+      center: [47.313220, -1.319482],
+      markerLatLng: [47.313220, -1.319482]
+    };
+  }
+}
+</script>
+:::
+</docs>
