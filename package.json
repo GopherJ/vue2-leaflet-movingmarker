@@ -2,7 +2,7 @@
     "name": "vue2-leaflet-movingmarker",
     "version": "1.1.0",
     "description": "MovingMarker plugin extension for vue2-leaflet package",
-    "main": "dist/vue2-leaflet-movingmarker.common.js",
+    "main": "dist/vue2-leaflet-movingmarker.umd.js",
     "scripts": {
         "build": "npm run build:lib && npm run build:docs",
         "serve": "vue-cli-service serve --mode development --open",
