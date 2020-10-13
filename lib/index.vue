@@ -14,7 +14,7 @@
    * Marker component, lets you add and personalize markers on the map
    */
   export default {
-    name: 'LMarker',
+    name: 'LMovingMarker',
     mixins: [LayerMixin, OptionsMixin],
     props: {
       pane: {
